@@ -1,0 +1,76 @@
+service: gram-coffee-rds
+
+custom:
+  stage: ${opt:stage, self:provider.stage}
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  profile: gram-coffee
+  region: ap-southeast-1
+  stackName: ${self:service}
+  stage: dev
+
+resources:
+  Resources:
+    NSBServicesLambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - cognito-idp.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Path: "/"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: ${self:provider.stackName}-user-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ses:*
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - cognito-idp:AdminCreateUser
+                    - cognito-idp:AdminUpdateUserAttributes
+                    - cognito-idp:ListUsers
+                    - cognito-idp:AdminGetUser
+                    - cognito-idp:AdminDeleteUser
+                    - cognito-idp:AdminSetUserPassword
+                    - cognito-idp:ForgotPassword
+                    - cognito-idp:ConfirmForgotPassword
+                    - cognito-idp:AdminInitiateAuth
+                    - cognito-idp:AdminConfirmSignUp
+                    - cognito-idp:ConfirmSignUp
+                    - cognito-idp:ResendConfirmationCode
+                    - cognito-idp:AdminRespondToAuthChallenge
+                  Resource:
+                    - arn:aws:cognito-idp:*:*:*/*
+                - Effect: Allow
+                  Action:
+                    - "rds:*"
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - s3:*
+                  Resource: "*"
+    ProductDatabase:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        AllocatedStorage: 20
+        DBInstanceClass: db.t2.micro
+        DBName: gramCoffeeDB
+        Engine: mysql
+        EngineVersion: 8.0.25
+        MasterUsername: gramCoffeeAdmin
+        MasterUserPassword: conceptStone
+        PubliclyAccessible: true
