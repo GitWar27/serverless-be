@@ -1,0 +1,126 @@
+service: gram-coffee-cognito
+
+custom:
+  stage: ${opt:stage, self:provider.stage}
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  profile: gram-coffee
+  region: ap-southeast-1
+  stackName: ${self:service}
+  stage: dev
+
+resources:
+  Resources:
+    NSBServicesLambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - cognito-idp.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Path: "/"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: ${self:provider.stackName}-user-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ses:*
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - cognito-idp:AdminCreateUser
+                    - cognito-idp:AdminUpdateUserAttributes
+                    - cognito-idp:ListUsers
+                    - cognito-idp:AdminGetUser
+                    - cognito-idp:AdminDeleteUser
+                    - cognito-idp:AdminSetUserPassword
+                    - cognito-idp:ForgotPassword
+                    - cognito-idp:ConfirmForgotPassword
+                    - cognito-idp:AdminInitiateAuth
+                    - cognito-idp:AdminConfirmSignUp
+                    - cognito-idp:ConfirmSignUp
+                    - cognito-idp:ResendConfirmationCode
+                    - cognito-idp:AdminRespondToAuthChallenge
+                  Resource:
+                    - arn:aws:cognito-idp:*:*:*/*
+                - Effect: Allow
+                  Action:
+                    - "rds:*"
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - s3:*
+                  Resource: "*"
+
+    # Create a Cognito User Pool
+    CognitoUserPool:
+      DependsOn: NSBServicesLambdaRole
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:provider.stackName}-userpool
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: true
+            RequireUppercase: true
+        VerificationMessageTemplate:
+          DefaultEmailOption: CONFIRM_WITH_CODE
+        UsernameAttributes:
+          - email
+        Schema:
+          - AttributeDataType: String
+            Mutable: false
+            Name: email
+            Required: true
+
+    # Create an App Client for our Cognito User Pool
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:custom.stage}-user-pool-client
+        UserPoolId:
+          Ref: CognitoUserPool
+        # GenerateSecret: false
+        RefreshTokenValidity: 30
+        AccessTokenValidity: 24
+        IdTokenValidity: 24
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthFlows:
+          - code
+        AllowedOAuthScopes:
+          - email
+          - openid
+          - profile
+          - aws.cognito.signin.user.admin
+        CallbackURLs:
+          - https://test.com/callback
+        DefaultRedirectURI: https://test.com/callback
+        LogoutURLs:
+          - https://test.com/callback
+        ExplicitAuthFlows:
+          - USER_PASSWORD_AUTH
+          - CUSTOM_AUTH_FLOW_ONLY
+
+# Print out the Id of the User Pool that is created
+Outputs:
+  UserPoolId:
+    Value:
+      Ref: CognitoUserPool
+
+  UserPoolClientId:
+    Value:
+      Ref: CognitoUserPoolClient

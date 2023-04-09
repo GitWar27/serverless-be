@@ -1,0 +1,512 @@
+{
+  "service": {
+    "service": "gram-coffee-cognito",
+    "serviceObject": {
+      "name": "gram-coffee-cognito"
+    },
+    "provider": {
+      "name": "aws",
+      "runtime": "nodejs12.x",
+      "profile": "gram-coffee",
+      "region": "ap-southeast-1",
+      "stackName": "gram-coffee-cognito",
+      "stage": "dev",
+      "versionFunctions": true,
+      "compiledCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "ServerlessDeploymentBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+              "BucketEncryption": {
+                "ServerSideEncryptionConfiguration": [
+                  {
+                    "ServerSideEncryptionByDefault": {
+                      "SSEAlgorithm": "AES256"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ServerlessDeploymentBucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+              "Bucket": {
+                "Ref": "ServerlessDeploymentBucket"
+              },
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Action": "s3:*",
+                    "Effect": "Deny",
+                    "Principal": "*",
+                    "Resource": [
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":s3:::",
+                            {
+                              "Ref": "ServerlessDeploymentBucket"
+                            },
+                            "/*"
+                          ]
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":s3:::",
+                            {
+                              "Ref": "ServerlessDeploymentBucket"
+                            }
+                          ]
+                        ]
+                      }
+                    ],
+                    "Condition": {
+                      "Bool": {
+                        "aws:SecureTransport": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "NSBServicesLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": [
+                        "lambda.amazonaws.com",
+                        "cognito-idp.amazonaws.com"
+                      ]
+                    },
+                    "Action": [
+                      "sts:AssumeRole"
+                    ]
+                  }
+                ]
+              },
+              "Path": "/",
+              "ManagedPolicyArns": [
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+              ],
+              "Policies": [
+                {
+                  "PolicyName": "gram-coffee-cognito-user-policy",
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "ses:*"
+                        ],
+                        "Resource": "*"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "cognito-idp:AdminCreateUser",
+                          "cognito-idp:AdminUpdateUserAttributes",
+                          "cognito-idp:ListUsers",
+                          "cognito-idp:AdminGetUser",
+                          "cognito-idp:AdminDeleteUser",
+                          "cognito-idp:AdminSetUserPassword",
+                          "cognito-idp:ForgotPassword",
+                          "cognito-idp:ConfirmForgotPassword",
+                          "cognito-idp:AdminInitiateAuth",
+                          "cognito-idp:AdminConfirmSignUp",
+                          "cognito-idp:ConfirmSignUp",
+                          "cognito-idp:ResendConfirmationCode",
+                          "cognito-idp:AdminRespondToAuthChallenge"
+                        ],
+                        "Resource": [
+                          "arn:aws:cognito-idp:*:*:*/*"
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "rds:*"
+                        ],
+                        "Resource": "*"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "s3:*"
+                        ],
+                        "Resource": "*"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "CognitoUserPool": {
+            "DependsOn": [
+              "NSBServicesLambdaRole"
+            ],
+            "Type": "AWS::Cognito::UserPool",
+            "Properties": {
+              "UserPoolName": "gram-coffee-cognito-userpool",
+              "Policies": {
+                "PasswordPolicy": {
+                  "MinimumLength": 8,
+                  "RequireLowercase": true,
+                  "RequireNumbers": true,
+                  "RequireSymbols": true,
+                  "RequireUppercase": true
+                }
+              },
+              "VerificationMessageTemplate": {
+                "DefaultEmailOption": "CONFIRM_WITH_CODE"
+              },
+              "UsernameAttributes": [
+                "email"
+              ],
+              "Schema": [
+                {
+                  "AttributeDataType": "String",
+                  "Mutable": false,
+                  "Name": "email",
+                  "Required": true
+                }
+              ]
+            }
+          },
+          "CognitoUserPoolClient": {
+            "Type": "AWS::Cognito::UserPoolClient",
+            "Properties": {
+              "ClientName": "dev-user-pool-client",
+              "UserPoolId": {
+                "Ref": "CognitoUserPool"
+              },
+              "RefreshTokenValidity": 30,
+              "AccessTokenValidity": 24,
+              "IdTokenValidity": 24,
+              "AllowedOAuthFlowsUserPoolClient": true,
+              "AllowedOAuthFlows": [
+                "code"
+              ],
+              "AllowedOAuthScopes": [
+                "email",
+                "openid",
+                "profile",
+                "aws.cognito.signin.user.admin"
+              ],
+              "CallbackURLs": [
+                "https://test.com/callback"
+              ],
+              "DefaultRedirectURI": "https://test.com/callback",
+              "LogoutURLs": [
+                "https://test.com/callback"
+              ],
+              "ExplicitAuthFlows": [
+                "USER_PASSWORD_AUTH",
+                "CUSTOM_AUTH_FLOW_ONLY"
+              ]
+            }
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": {
+              "Ref": "ServerlessDeploymentBucket"
+            },
+            "Export": {
+              "Name": "sls-gram-coffee-cognito-dev-ServerlessDeploymentBucketName"
+            }
+          }
+        }
+      },
+      "coreCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "ServerlessDeploymentBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+              "BucketEncryption": {
+                "ServerSideEncryptionConfiguration": [
+                  {
+                    "ServerSideEncryptionByDefault": {
+                      "SSEAlgorithm": "AES256"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ServerlessDeploymentBucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+              "Bucket": {
+                "Ref": "ServerlessDeploymentBucket"
+              },
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Action": "s3:*",
+                    "Effect": "Deny",
+                    "Principal": "*",
+                    "Resource": [
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":s3:::",
+                            {
+                              "Ref": "ServerlessDeploymentBucket"
+                            },
+                            "/*"
+                          ]
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":s3:::",
+                            {
+                              "Ref": "ServerlessDeploymentBucket"
+                            }
+                          ]
+                        ]
+                      }
+                    ],
+                    "Condition": {
+                      "Bool": {
+                        "aws:SecureTransport": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": {
+              "Ref": "ServerlessDeploymentBucket"
+            }
+          }
+        }
+      }
+    },
+    "custom": {
+      "stage": "dev"
+    },
+    "pluginsData": {},
+    "functions": {},
+    "resources": {
+      "Resources": {
+        "NSBServicesLambdaRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com",
+                      "cognito-idp.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Path": "/",
+            "ManagedPolicyArns": [
+              "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+            ],
+            "Policies": [
+              {
+                "PolicyName": "gram-coffee-cognito-user-policy",
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ses:*"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "cognito-idp:AdminCreateUser",
+                        "cognito-idp:AdminUpdateUserAttributes",
+                        "cognito-idp:ListUsers",
+                        "cognito-idp:AdminGetUser",
+                        "cognito-idp:AdminDeleteUser",
+                        "cognito-idp:AdminSetUserPassword",
+                        "cognito-idp:ForgotPassword",
+                        "cognito-idp:ConfirmForgotPassword",
+                        "cognito-idp:AdminInitiateAuth",
+                        "cognito-idp:AdminConfirmSignUp",
+                        "cognito-idp:ConfirmSignUp",
+                        "cognito-idp:ResendConfirmationCode",
+                        "cognito-idp:AdminRespondToAuthChallenge"
+                      ],
+                      "Resource": [
+                        "arn:aws:cognito-idp:*:*:*/*"
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "rds:*"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "s3:*"
+                      ],
+                      "Resource": "*"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "CognitoUserPool": {
+          "DependsOn": [
+            "NSBServicesLambdaRole"
+          ],
+          "Type": "AWS::Cognito::UserPool",
+          "Properties": {
+            "UserPoolName": "gram-coffee-cognito-userpool",
+            "Policies": {
+              "PasswordPolicy": {
+                "MinimumLength": 8,
+                "RequireLowercase": true,
+                "RequireNumbers": true,
+                "RequireSymbols": true,
+                "RequireUppercase": true
+              }
+            },
+            "VerificationMessageTemplate": {
+              "DefaultEmailOption": "CONFIRM_WITH_CODE"
+            },
+            "UsernameAttributes": [
+              "email"
+            ],
+            "Schema": [
+              {
+                "AttributeDataType": "String",
+                "Mutable": false,
+                "Name": "email",
+                "Required": true
+              }
+            ]
+          }
+        },
+        "CognitoUserPoolClient": {
+          "Type": "AWS::Cognito::UserPoolClient",
+          "Properties": {
+            "ClientName": "dev-user-pool-client",
+            "UserPoolId": {
+              "Ref": "CognitoUserPool"
+            },
+            "RefreshTokenValidity": 30,
+            "AccessTokenValidity": 24,
+            "IdTokenValidity": 24,
+            "AllowedOAuthFlowsUserPoolClient": true,
+            "AllowedOAuthFlows": [
+              "code"
+            ],
+            "AllowedOAuthScopes": [
+              "email",
+              "openid",
+              "profile",
+              "aws.cognito.signin.user.admin"
+            ],
+            "CallbackURLs": [
+              "https://test.com/callback"
+            ],
+            "DefaultRedirectURI": "https://test.com/callback",
+            "LogoutURLs": [
+              "https://test.com/callback"
+            ],
+            "ExplicitAuthFlows": [
+              "USER_PASSWORD_AUTH",
+              "CUSTOM_AUTH_FLOW_ONLY"
+            ]
+          }
+        }
+      },
+      "Outputs": {}
+    },
+    "configValidationMode": "warn",
+    "serviceFilename": "serverless.yml",
+    "initialServerlessConfig": {
+      "service": "gram-coffee-cognito",
+      "custom": {
+        "$ref": "$[\"service\"][\"custom\"]"
+      },
+      "provider": {
+        "$ref": "$[\"service\"][\"provider\"]"
+      },
+      "resources": {
+        "$ref": "$[\"service\"][\"resources\"]"
+      },
+      "Outputs": {
+        "UserPoolId": {
+          "Value": {
+            "Ref": "CognitoUserPool"
+          }
+        },
+        "UserPoolClientId": {
+          "Value": {
+            "Ref": "CognitoUserPoolClient"
+          }
+        }
+      }
+    },
+    "layers": {},
+    "isDashboardMonitoringPreconfigured": false
+  },
+  "package": {
+    "artifactDirectoryName": "serverless/gram-coffee-cognito/dev/1680956293915-2023-04-08T12:18:13.915Z",
+    "artifact": ""
+  }
+}
